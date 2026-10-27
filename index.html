@@ -1,3 +1,6 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>A &amp; S</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;1,500;1,600&family=Jost:wght@400;500&display=swap">
@@ -41,7 +44,7 @@ nav a:focus-visible,button:focus-visible,input:focus-visible,.tile:focus-visible
 .tpl{width:68px;background:transparent;border:1px solid rgba(237,224,192,.3);padding:5px 5px 6px;color:var(--lace-dim);font:inherit;font-size:11px;letter-spacing:.04em;cursor:pointer;border-radius:2px;display:flex;flex-direction:column;gap:5px;align-items:center}
 .tpl img{display:block;width:100%;aspect-ratio:9/16;object-fit:cover;object-position:top;background:var(--lace)}
 .tpl[aria-pressed="true"]{border-color:var(--lace);color:var(--lace);background:rgba(237,224,192,.1)}
-.stripbox{position:relative;width:100%;max-width:400px;margin:0 auto}
+.stripbox{position:relative;width:100%;max-width:440px;margin:0 auto}
 canvas#cv{display:block;width:100%;height:auto;border-radius:2px;box-shadow:0 14px 40px rgba(0,0,0,.5);touch-action:manipulation;cursor:pointer}
 .hint{text-align:center;color:var(--lace-dim);font-size:13px;margin:0}
 .slots{display:flex;gap:8px;justify-content:center}
@@ -79,8 +82,11 @@ input[type=file]{display:none}
 .sheet img{max-width:100%;max-height:72vh;width:auto;height:auto;border-radius:2px;box-shadow:0 14px 40px rgba(0,0,0,.6)}
 .sheet .row{width:100%;max-width:400px}
 @media (prefers-reduced-motion:no-preference){.tile{transition:transform .15s}.tile:active{transform:scale(.98)}}
+[hidden]{display:none!important}
+img{max-width:100%}
 </style>
 
+</head><body>
 <div class="wrap">
   <header>
     <div class="kicker">Take a picture with us</div>
@@ -379,3 +385,4 @@ input[type=file]{display:none}
   setTemplate(TPL[0]);route();
 })();
 </script>
+</body></html>
