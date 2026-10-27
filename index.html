@@ -86,6 +86,7 @@ input[type=file]{display:none}
 img{max-width:100%}
 </style>
 
+<script src="config.js"></script>
 </head><body>
 <div class="wrap">
   <header>
@@ -100,7 +101,6 @@ img{max-width:100%}
   <section class="view" id="v-booth">
     <div class="tpls" id="tpls" role="group" aria-label="Frame style"></div>
     <div class="stripbox"><canvas id="cv" width="720" height="1280" aria-label="Photo strip preview. Tap a frame to add a photo."></canvas></div>
-    <div class="slots" id="slots"></div>
     <p class="hint" id="hint">Tap a frame, then take your photo.</p>
     <div class="field">
       <label for="cap">Message on your strip</label>
@@ -231,24 +231,10 @@ img{max-width:100%}
   cv.addEventListener('click',function(ev){var i=hit(ev);if(i>=0){active=i;refresh();$('f-cam').click();}});
 
   function refresh(){
-    var s=$('slots');s.textContent='';
-    if(n()>1){
-      for(var i=0;i<n();i++){
-        (function(i){
-          var b=document.createElement('button');b.type='button';
-          b.className='slot'+(photos[i]?' done':'');
-          b.setAttribute('aria-pressed',String(i===active));
-          var ck=document.createElement('span');ck.className='ck';ck.textContent=photos[i]?'✓':'';
-          b.appendChild(ck);b.appendChild(document.createTextNode(' Frame '+(i+1)));
-          b.addEventListener('click',function(){active=i;refresh();});
-          s.appendChild(b);
-        })(i);
-      }
-    }
     var all=firstEmpty()<0;
     $('done').hidden=!all;
     $('b-cam').textContent=photos[active]?(n()>1?'Retake frame '+(active+1):'Retake photo'):'Take photo';
-    $('hint').textContent=all?'Looking good. Save it to your phone'+(db?' or add it to the album.':'.')
+    $('hint').textContent=all?'Looking good. Save it to your phone'+(hasAlbum()?' or add it to the album.':'.')
       :(n()>1?'Frame '+(active+1)+' of '+n()+'. Tap a frame to pick a different one.':'Tap the frame, then take your photo.');
     draw();
   }
@@ -320,8 +306,8 @@ img{max-width:100%}
   });
 
   $('b-add').addEventListener('click',function(){
-    if(!db)return;
-    var btn=$('b-add');btn.disabled=true;say('Adding to the album…');
+    if(!hasAlbum())return;
+    var btn=$('b-add');btn.disabled=true;say('Adding to the album\u2026');
     var q=0.74;
     (function attempt(){
       renderBlob(450,q).then(function(blob){
@@ -329,8 +315,9 @@ img{max-width:100%}
         r.onload=function(){
           var url=r.result;
           if(url.length>190000&&q>0.4){q-=0.12;return attempt();}
-          db.collection('photos').add({img:url,name:($('cap').value||'').trim().slice(0,32),tpl:cur.id,createdAt:Date.now()})
-            .then(function(){say('Added. Find it in the Album tab.');btn.textContent='Added';})
+          var rec={img:url,name:($('cap').value||'').trim().slice(0,32),tpl:cur.id};
+          var p=db?db.collection('photos').add({img:rec.img,name:rec.name,tpl:rec.tpl,createdAt:Date.now()}):rAdd(rec);
+          p.then(function(){say('Added. Find it in the Album tab.');btn.textContent='Added';if(!db)rList().catch(function(){});})
             .catch(function(e){
               btn.disabled=false;
               say(e&&e.code==='invalid_argument'?'Your account can view the album but not add to it. Save your strip to your phone instead.':'Could not add the photo. Check your connection and try again.',true);
@@ -341,32 +328,57 @@ img{max-width:100%}
     })();
   });
 
-  /* album (only when the page runs with a shared database) */
-  function renderAlbum(snap){
+  /* album */
+  function renderTiles(items){
     var g=$('grid');g.textContent='';
-    snap.docs.forEach(function(d){
-      var v=d.data();if(!v||!v.img)return;
+    items.forEach(function(v){
+      if(!v||!v.img)return;
       var t=document.createElement('button');t.type='button';t.className='tile';
       var im=document.createElement('img');im.src=v.img;im.alt='Photo strip'+(v.name?': '+v.name:'');im.loading='lazy';
       t.appendChild(im);
       if(v.name){var by=document.createElement('div');by.className='by';by.textContent=v.name;t.appendChild(by);}
-      t.addEventListener('click',function(){openSheet(v.img,'Press and hold the picture to save it.',d);});
+      t.addEventListener('click',function(){openSheet(v.img,'Press and hold the picture to save it.',v.doc);});
       g.appendChild(t);
     });
-    $('album-empty').hidden=snap.size>0;
+    $('album-empty').hidden=items.length>0;
+  }
+  function renderAlbum(snap){
+    renderTiles(snap.docs.map(function(d){var v=d.data()||{};return {img:v.img,name:v.name,doc:d};}));
   }
   $('s-del').addEventListener('click',function(){
     if(!sheetDoc||!db)return;
     db.doc('photos/'+sheetDoc.id).delete().then(function(){$('sheet').hidden=true;sheetDoc=null;}).catch(function(){$('sheet-note').textContent='Could not remove that photo.';});
   });
 
+  /* shared album kept in a free Supabase table (GitHub version). Values come from config.js. */
+  function cfg(){return (window.BOOTH&&window.BOOTH.url&&window.BOOTH.key)?window.BOOTH:null;}
+  function hasAlbum(){return !!(db||cfg());}
+  function rBase(){return cfg().url.replace(/\/+$/,'')+'/rest/v1/photos';}
+  function rHeaders(extra){
+    var c=cfg(), h={apikey:c.key};
+    if(c.key.indexOf('eyJ')===0)h.Authorization='Bearer '+c.key;
+    for(var k in extra)h[k]=extra[k];
+    return h;
+  }
+  function rList(){
+    return fetch(rBase()+'?select=id,img,name,created_at&order=created_at.desc&limit=30',{headers:rHeaders()})
+      .then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.json();})
+      .then(function(rows){$('album-msg').textContent='';renderTiles(rows.map(function(v){return {img:v.img,name:v.name};}));});
+  }
+  function rAdd(rec){
+    return fetch(rBase(),{method:'POST',headers:rHeaders({'Content-Type':'application/json',Prefer:'return=minimal'}),body:JSON.stringify(rec)})
+      .then(function(r){if(!r.ok)throw new Error('status '+r.status);});
+  }
+  function albumError(){$('album-msg').textContent='The album could not be loaded right now.';}
+
   var views={booth:$('v-booth'),album:$('v-album')};
   function route(){
-    var h=(location.hash||'').replace('#','');if(!views[h]||(h==='album'&&!db))h='booth';
+    var h=(location.hash||'').replace('#','');if(!views[h]||(h==='album'&&!hasAlbum()))h='booth';
     Object.keys(views).forEach(function(k){
       views[k].hidden=k!==h;
       var a=$('n-'+k);if(k===h)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');
     });
+    if(h==='album'&&cfg())rList().catch(albumError);
   }
   window.addEventListener('hashchange',route);
 
@@ -382,6 +394,10 @@ img{max-width:100%}
     });
   }
 
+  if(cfg()){
+    $('nav').hidden=false;$('n-album').hidden=false;$('b-add').hidden=false;
+    setInterval(function(){if(!views.album.hidden&&cfg())rList().catch(albumError);},15000);
+  }
   setTemplate(TPL[0]);route();
 })();
 </script>
